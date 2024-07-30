@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Code Editor with Backup and Restore</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #1e1e1e;
+            color: #f5f5f5;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #282c34;
+            color: white;
+            padding: 10px 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+        .header button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 10px;
+        }
+        .header button.toggle-theme {
+            margin-left: auto;
+        }
+        .tabs {
+            display: flex;
+            background: #21252b;
+        }
+        .tabs button {
+            background: #2c313a;
+            color: white;
+            border: none;
+            padding: 15px;
+            cursor: pointer;
+            flex: 1;
+            text-align: center;
+            transition: background 0.3s;
+        }
+        .tabs button.active {
+            background: #61afef;
+            color: black;
+        }
+        .search-bar {
+            display: flex;
+            align-items: center;
+            background-color: #333;
+            padding: 5px;
+            margin: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .search-bar input, .search-bar button {
+            margin: 0 5px;
+        }
+        .search-bar input {
+            padding: 5px;
+            border: 1px solid #444;
+            border-radius: 3px;
+            background-color: #282c34;
+            color: #abb2bf;
+            outline: none;
+        }
+        .search-bar button {
+            background-color: #61afef;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .search-bar button:hover {
+            background-color: #4a90d6;
+        }
+        .backup-restore-bar {
+            display: flex;
+            align-items: center;
+            background-color: #333;
+            padding: 5px;
+            margin: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+        .backup-restore-bar button {
+            margin: 0 5px;
+            background-color: #61afef;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .backup-restore-bar button:hover {
+            background-color: #4a90d6;
+        }
+        .panels {
+            display: flex;
+            flex: 1;
+            height: calc(100% - 80px); /* Adjust based on header height and search bar */
+            overflow: hidden;
+        }
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: row;
+            min-width: 0;
+        }
+        .editor-wrapper {
+            display: flex;
+            width: 100%;
+        }
+        .line-numbers {
+            background-color: #2e2e2e;
+            color: #abb2bf;
+            padding: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #444;
+            width: 50px;
+            text-align: right;
+            overflow: hidden;
+            white-space: nowrap;
+        }
+        .editor {
+            flex: 1;
+            background-color: #282c34;
+            color: #abb2bf;
+            padding: 10px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.6;
+            resize: both;
+            min-height: 0;
+            outline: none;
+            border: none;
+        }
+        .preview {
+            flex: 1;
+            background: #ffffff;
+            padding: 10px;
+            overflow: auto;
+            border-left: 1px solid #444;
+        }
+        .preview iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .theme-light {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .theme-light .header {
+            background-color: #e0e0e0;
+            color: #333;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .theme-light .tabs {
+            background: #ddd;
+        }
+        .theme-light .tabs button {
+            background: #eee;
+            color: #333;
+        }
+        .theme-light .tabs button.active {
+            background: #ccc;
+            color: black;
+        }
+        .theme-light .editor {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .theme-light .preview {
+            background-color: #fafafa;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('html')">HTML</button>
+            <button class="tab-button" onclick="switchTab('css')">CSS</button>
+            <button class="tab-button" onclick="switchTab('js')">JavaScript</button>
+        </div>
+        <button class="toggle-theme" onclick="toggleTheme()">🌙</button>
+    </div>
+    
+    <div class="search-bar">
+        <input id="searchInput" type="text" placeholder="Search...">
+        <button onclick="search()">Search</button>
+        <input id="replaceInput" type="text" placeholder="Replace with...">
+        <button onclick="replaceAll()">Replace All</button>
+    </div>
+    
+    <div class="backup-restore-bar">
+        <button onclick="backup()">Backup</button>
+        <button onclick="restore()">Restore</button>
+    </div>
+    
+    <div class="panels">
+        <div id="editorPanel" class="panel">
+            <div id="htmlEditorWrapper" class="editor-wrapper">
+                <div id="htmlLineNumbers" class="line-numbers"></div>
+                <textarea id="htmlEditor" class="editor" placeholder="Write HTML here..."></textarea>
+            </div>
+            <div id="cssEditorWrapper" class="editor-wrapper" style="display: none;">
+                <div id="cssLineNumbers" class="line-numbers"></div>
+                <textarea id="cssEditor" class="editor" placeholder="Write CSS here..."></textarea>
+            </div>
+            <div id="jsEditorWrapper" class="editor-wrapper" style="display: none;">
+                <div id="jsLineNumbers" class="line-numbers"></div>
+                <textarea id="jsEditor" class="editor" placeholder="Write JavaScript here..."></textarea>
+            </div>
+        </div>
+        <div class="preview">
+            <iframe id="previewFrame"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const editors = {
+            html: document.getElementById('htmlEditor'),
+            css: document.getElementById('cssEditor'),
+            js: document.getElementById('jsEditor')
+        };
+        const lineNumbersDivs = {
+            html: document.getElementById('htmlLineNumbers'),
+            css: document.getElementById('cssLineNumbers'),
+            js: document.getElementById('jsLineNumbers')
+        };
+
+        function switchTab(tabName) {
+            for (const [key, editor] of Object.entries(editors)) {
+                editor.parentElement.style.display = key === tabName ? 'flex' : 'none';
+            }
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.toggle('active', button.textContent.toLowerCase() === tabName);
+            });
+            updateLineNumbers(tabName);
+            updatePreview();
+        }
+
+        function updateLineNumbers(tabName) {
+            const editor = editors[tabName];
+            const lineNumbersDiv = lineNumbersDivs[tabName];
+            const lines = editor.value.split('\n').length;
+            lineNumbersDiv.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+        }
+
+        function updatePreview() {
+            const html = editors.html.value;
+            const css = editors.css.value;
+            const js = editors.js.value;
+
+            const iframe = document.getElementById('previewFrame');
+            const doc = iframe.contentDocument || iframe.contentWindow.document;
+            doc.open();
+            doc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <style>${css}</style>
+                </head>
+                <body>
+                    ${html}
+                    <script>
+                        try {
+                            ${js}
+                        } catch (e) {
+                            console.error('Error in JavaScript code:', e);
+                            document.body.innerHTML += '<p style="color: red;">Error in JavaScript code: ' + e.message + '</p>';
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `);
+            doc.close();
+        }
+
+        function search() {
+            const searchInput = document.getElementById('searchInput').value;
+            const editor = editors[getActiveTab()];
+            const editorContent = editor.value;
+            const startIndex = editorContent.indexOf(searchInput);
+            if (startIndex !== -1) {
+                editor.focus();
+                editor.setSelectionRange(startIndex, startIndex + searchInput.length);
+            } else {
+                alert('Text not found');
+            }
+        }
+
+        function replaceAll() {
+            const searchInput = document.getElementById('searchInput').value;
+            const replaceInput = document.getElementById('replaceInput').value;
+            const editor = editors[getActiveTab()];
+            editor.value = editor.value.split(searchInput).join(replaceInput);
+            updateLineNumbers(getActiveTab());
+            updatePreview();
+        }
+
+        function getActiveTab() {
+            return document.querySelector('.tab-button.active').textContent.toLowerCase();
+        }
+
+        function toggleTheme() {
+            document.body.classList.toggle('theme-light');
+        }
+
+        function backup() {
+            const activeTab = getActiveTab();
+            const blob = new Blob([editors[activeTab].value], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${activeTab}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function restore() {
+            const activeTab = getActiveTab();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.txt';
+            input.style.display = 'none';
+            input.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        editors[activeTab].value = e.target.result;
+                        updateLineNumbers(activeTab);
+                        updatePreview();
+                    };
+                    reader.readAsText(file);
+                }
+            });
+            document.body.appendChild(input);
+            input.click();
+            document.body.removeChild(input);
+        }
+
+        Object.values(editors).forEach((editor, index) => {
+            editor.addEventListener('input', () => {
+                updateLineNumbers(Object.keys(editors)[index]);
+                updatePreview();
+            });
+        });
+
+        // Initialize with HTML tab open
+        switchTab('html');
+    </script>
+</body>
+</html>
