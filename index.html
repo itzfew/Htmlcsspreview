@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Advanced Code Editor with Backup, Restore, and Emmet Features</title>
+    <title>Advanced Code Editor with Emmet Suggestions</title>
     <style>
         body {
             font-family: 'Courier New', Courier, monospace;
@@ -173,40 +173,25 @@
         .theme-light .preview {
             background-color: #fafafa;
         }
-        /* Custom Scrollbars */
-        .editor::-webkit-scrollbar {
-            width: 8px;
-        }
-        .editor::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-        .editor::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
-        .editor.foldable {
-            position: relative;
-        }
-        .editor.foldable::before {
-            content: '▶';
+        .editor-suggestions {
             position: absolute;
-            top: 0;
+            background: #333;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1001;
+            top: 40px;
+            left: 0;
             right: 0;
-            cursor: pointer;
-            padding: 5px;
-            color: #61afef;
-            z-index: 1;
         }
-        .editor.foldable.folded::before {
-            content: '▼';
-        }
-        .emmet-button {
-            background-color: #61afef;
-            color: white;
-            border: none;
+        .editor-suggestions div {
+            padding: 10px;
             cursor: pointer;
-            padding: 5px 10px;
-            border-radius: 3px;
+        }
+        .editor-suggestions div:hover {
+            background: #555;
         }
     </style>
 </head>
@@ -218,7 +203,6 @@
             <button class="tab-button" onclick="switchTab('js')">JavaScript</button>
         </div>
         <button class="toggle-theme" onclick="toggleTheme()">🌙</button>
-        <button class="emmet-button" onclick="handleEmmetExpansion()">Expand Emmet</button>
     </div>
     
     <div class="search-bar">
@@ -253,6 +237,8 @@
         </div>
     </div>
 
+    <div id="suggestions" class="editor-suggestions" style="display: none;"></div>
+
     <script>
         const editors = {
             html: document.getElementById('htmlEditor'),
@@ -266,10 +252,39 @@
         };
 
         const emmetAbbreviations = {
-            'html:5': '<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Document</title>\n</head>\n<body>\n\n</body>\n</html>',
-            'ul>li*5': '<ul>\n    <li></li>\n    <li></li>\n    <li></li>\n    <li></li>\n    <li></li>\n</ul>',
-            'header>h1+p': '<header>\n    <h1></h1>\n    <p></p>\n</header>'
-            // Add more abbreviations as needed
+            'html:5': `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+
+</body>
+</html>`,
+            'ul>li*5': `<ul>
+    <li></li>
+    <li></li>
+    <li></li>
+    <li></li>
+    <li></li>
+</ul>`,
+            'header>h1+p': `<header>
+    <h1></h1>
+    <p></p>
+</header>`,
+            'article>header+h1+div+footer': `<article>
+    <header></header>
+    <h1></h1>
+    <div></div>
+    <footer></footer>
+</article>`,
+            'form>input[type="text"]+input[type="password"]+button': `<form>
+    <input type="text">
+    <input type="password">
+    <button></button>
+</form>`
         };
 
         function switchTab(tabName) {
@@ -384,27 +399,6 @@
             document.body.removeChild(input);
         }
 
-        function handleEmmetExpansion() {
-            const activeTab = getActiveTab();
-            const editor = editors[activeTab];
-            const abbreviation = editor.value.trim();
-
-            if (emmetAbbreviations[abbreviation]) {
-                editor.value = emmetAbbreviations[abbreviation];
-                updateLineNumbers(activeTab);
-                updatePreview();
-            } else {
-                alert('No Emmet abbreviation found');
-            }
-        }
-
-        document.addEventListener('keydown', (event) => {
-            if (event.ctrlKey && event.key === 'e') { // Ctrl + E for Emmet expansion
-                event.preventDefault();
-                handleEmmetExpansion();
-            }
-        });
-
         function enableCodeFolding() {
             document.querySelectorAll('.editor').forEach(editor => {
                 editor.classList.add('foldable');
@@ -413,6 +407,40 @@
                 });
             });
         }
+
+        function updateSuggestions() {
+            const editor = editors[getActiveTab()];
+            const cursorPosition = editor.selectionStart;
+            const textBeforeCursor = editor.value.substring(0, cursorPosition);
+            const lastWord = textBeforeCursor.split(/[\s<>\+\*]/).pop();
+
+            const suggestionsDiv = document.getElementById('suggestions');
+            suggestionsDiv.innerHTML = '';
+            suggestionsDiv.style.display = 'none';
+
+            if (lastWord.length > 0) {
+                for (const [abbr, expansion] of Object.entries(emmetAbbreviations)) {
+                    if (abbr.startsWith(lastWord)) {
+                        const suggestionDiv = document.createElement('div');
+                        suggestionDiv.textContent = abbr;
+                        suggestionDiv.onclick = () => {
+                            editor.value = editor.value.substring(0, cursorPosition - lastWord.length) + expansion;
+                            updateLineNumbers(getActiveTab());
+                            updatePreview();
+                            suggestionsDiv.style.display = 'none';
+                        };
+                        suggestionsDiv.appendChild(suggestionDiv);
+                    }
+                }
+                if (suggestionsDiv.innerHTML) {
+                    suggestionsDiv.style.display = 'block';
+                }
+            }
+        }
+
+        editors.html.addEventListener('input', updateSuggestions);
+        editors.css.addEventListener('input', updateSuggestions);
+        editors.js.addEventListener('input', updateSuggestions);
 
         enableCodeFolding();
 
